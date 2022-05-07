@@ -16,6 +16,38 @@ mongoClient.connect(() => {
     db = mongoClient.db(process.env.DATABASE);
 });
 
+app.post("/", async (req, res) => {
+    const { email, password } = req.body;
+    const userData = {
+        email,
+        password
+    }
+    const userSchema = joi.object({
+        email: joi.string().email().required().email(),
+        password: joi.string().alphanum().min(6).max(10).required()
+    });
+
+    const { error } = userSchema.validateAsync(userData, { abortEarly: false });
+
+    if (error) {
+        res.status(422).send(error.details.map(detail => detail.message));
+        return;
+    }
+
+    try {
+        const userValidation = await db.collection("users").findOne({ email });
+        if (userValidation && bcrypt.compareSync(password, userValidation.password)) {
+            res.status(200).send(userValidation);
+        } else {
+            res.sendStatus(404);
+            return;
+        }
+    }
+    catch {
+        res.sendStatus(500);
+    }
+});
+
 app.post("/sign-up", async (req, res) => {
     const { name, email, password, passwordConfirmation } = req.body;
     const userData = {
@@ -62,6 +94,6 @@ app.post("/sign-up", async (req, res) => {
     }
 });
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5500;
 
 app.listen(port);
