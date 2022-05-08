@@ -1,9 +1,11 @@
 import express, { json } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import joi from "joi";
 import bcrypt from "bcrypt";
+import { v4 } from "uuid";
+import dayjs from "dayjs";
 
 const app = express();
 app.use(cors());
@@ -37,7 +39,9 @@ app.post("/", async (req, res) => {
     try {
         const userValidation = await db.collection("users").findOne({ email });
         if (userValidation && bcrypt.compareSync(password, userValidation.password)) {
-            res.status(200).send(userValidation);
+            const token = v4();
+            res.status(200).send(token);
+            await db.collection("sessions").insertOne({ token, userId: userValidation._id, timeSession: dayjs().format("HH:mm:ss") });
         } else {
             res.sendStatus(404);
             return;
@@ -71,7 +75,7 @@ app.post("/sign-up", async (req, res) => {
     }
 
     try {
-        const passwordHash = bcrypt.hashSync(password, 10)
+        const passwordHash = bcrypt.hashSync(password, 10);
         const userValidation = await db.collection("users").findOne({ email });
         if (userValidation) {
             res.sendStatus(409);
@@ -94,6 +98,26 @@ app.post("/sign-up", async (req, res) => {
     }
 });
 
-const port = process.env.PORT || 5500;
+app.get("/records", async (req, res) => {
+
+    const { authorization } = req.headers;
+
+        const token = authorization?.replace("Bearer", "").trim();
+        if (!token) return res.sendStatus(401);
+
+        const session = await db.collection("sessions").findOne({ token });
+        if (!session) return res.sendStatus(401);
+
+        const user = await db.collection("users").findOne({ _id: session.userId });
+        if (!user) return res.sendStatus(404);
+
+        delete user._id;
+        delete user.password;
+
+        res.send(user);
+
+});
+
+const port = process.env.PORT || 9000;
 
 app.listen(port);
