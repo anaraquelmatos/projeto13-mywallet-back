@@ -42,7 +42,6 @@ app.post("/", async (req, res) => {
             const token = v4();
             res.status(200).send(token);
             await db.collection("sessions").insertOne({ token, userId: userValidation._id, timeSession: dayjs().format("HH:mm:ss") });
-            await db.collection("records").insertOne({ token, userId: userValidation._id });
         } else {
             res.sendStatus(404);
             return;
@@ -103,21 +102,29 @@ app.get("/records", async (req, res) => {
 
     const { authorization } = req.headers;
 
+    let array = [];
+
     const token = authorization?.replace("Bearer", "").trim();
     if (!token) return res.sendStatus(401);
 
     const session = await db.collection("sessions").findOne({ token });
     if (!session) return res.sendStatus(401);
 
-    const user = await db.collection("users").findOne({ _id: session.userId });
+    const user = await db.collection("users").findOne({ _id: new ObjectId(session.userId) });
     if (!user) return res.sendStatus(404);
-
-    const records = await db.collection("records").findOne({ _id: session.userId });
-
     delete user._id;
     delete user.password;
 
-    res.send({ user, records });
+    const records = await db.collection("records").find({ userId: new ObjectId(session.userId) }).toArray();
+
+    for (let i = 0; i < records.length; i++) {
+        if (records[i].description && records[i].value && records[i].day) {
+            array.push(records[i]);
+        }
+    }
+
+
+    res.send({ list: array, name: user.name })
 
 });
 
@@ -136,8 +143,8 @@ app.post("/records", async (req, res) => {
         operator
     }
     const userSchema = joi.object({
-        value: joi.string().pattern(/^[0-9]+\.[0-9]{2}$/).required(),
-        description: joi.string().required(),
+        value: joi.number().required(),
+        description: joi.required(),
         operator: joi.boolean().required()
     });
 
@@ -149,20 +156,15 @@ app.post("/records", async (req, res) => {
     }
 
     try {
-        const userValidation = await db.collection("records").findOne({ token });
-        if (!userValidation) {
-            res.sendStatus(409);
-            return;
-        }
-
         const user = await db.collection("sessions").findOne({ token });
+ 
         const session = await db.collection("sessions").findOne({ userId: new ObjectId(user.userId) });
         if (!session) {
-            res.sendStatus(409);
+            res.sendStatus(404);
             return;
         }
 
-        await db.collection("records").insertOne({ ...userData, userId: session.userId });
+        await db.collection("records").insertOne({ ...userData, day: dayjs().format("DD/MM"), userId: session.userId });
         res.sendStatus(201);
 
     }
