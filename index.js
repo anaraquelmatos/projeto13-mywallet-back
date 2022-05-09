@@ -1,102 +1,23 @@
 import express, { json } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { MongoClient, ObjectId } from "mongodb";
+import { ObjectId } from "mongodb";
 import joi from "joi";
 import bcrypt from "bcrypt";
-import { v4 } from "uuid";
 import dayjs from "dayjs";
+import db from "./db.js";
+import { signUpController } from "./controllers/signUpController.js";
+import { loginController } from "./controllers/loginController.js";
 
 const app = express();
 app.use(cors());
 app.use(json());
 dotenv.config();
 
-const mongoClient = new MongoClient(process.env.MONGO_URL);
-let db = null;
-mongoClient.connect(() => {
-    db = mongoClient.db(process.env.DATABASE);
-});
 
-app.post("/", async (req, res) => {
-    const { email, password } = req.body;
-    const userData = {
-        email,
-        password
-    }
-    const userSchema = joi.object({
-        email: joi.string().email().required().email(),
-        password: joi.string().alphanum().min(6).max(10).required()
-    });
+app.post("/", loginController);
 
-    const { error } = userSchema.validateAsync(userData, { abortEarly: false });
-
-    if (error) {
-        res.status(422).send(error.details.map(detail => detail.message));
-        return;
-    }
-
-    try {
-        const userValidation = await db.collection("users").findOne({ email });
-        if (userValidation && bcrypt.compareSync(password, userValidation.password)) {
-            const token = v4();
-            res.status(200).send(token);
-            await db.collection("sessions").insertOne({ token, userId: userValidation._id, timeSession: dayjs().format("HH:mm:ss") });
-        } else {
-            res.sendStatus(404);
-            return;
-        }
-    }
-    catch {
-        res.sendStatus(500);
-    }
-});
-
-app.post("/sign-up", async (req, res) => {
-    const { name, email, password, passwordConfirmation } = req.body;
-    const userData = {
-        name,
-        email,
-        password,
-        passwordConfirmation
-    }
-    const userSchema = joi.object({
-        name: joi.string().required(),
-        email: joi.string().email().required(),
-        password: joi.string().alphanum().min(6).max(10).required(),
-        passwordConfirmation: joi.string().alphanum().min(6).max(10).required()
-    });
-
-    const { error } = userSchema.validateAsync(userData, { abortEarly: false });
-
-    if (error) {
-        res.status(422).send(error.details.map(detail => detail.message));
-        return;
-    }
-
-    try {
-        const passwordHash = bcrypt.hashSync(password, 10);
-        const userValidation = await db.collection("users").findOne({ email });
-        if (userValidation) {
-            res.sendStatus(409);
-            return;
-        }
-
-        if ((password !== passwordConfirmation)) {
-            res.sendStatus(422);
-            return;
-        } else {
-            delete userData.passwordConfirmation;
-        }
-
-        await db.collection("users").insertOne({ ...userData, password: passwordHash });
-        res.sendStatus(201);
-
-    }
-    catch {
-        res.sendStatus(500);
-    }
-});
+app.post("/sign-up", signUpController);
 
 app.get("/records", async (req, res) => {
 
@@ -157,7 +78,7 @@ app.post("/records", async (req, res) => {
 
     try {
         const user = await db.collection("sessions").findOne({ token });
- 
+
         const session = await db.collection("sessions").findOne({ userId: new ObjectId(user.userId) });
         if (!session) {
             res.sendStatus(404);
@@ -169,6 +90,32 @@ app.post("/records", async (req, res) => {
 
     }
     catch {
+        res.sendStatus(500);
+    }
+});
+
+app.delete('/records/:id', async (req, res) => {
+
+    const { id } = req.params;
+
+    const { authorization } = req.headers;
+
+    const token = authorization?.replace("Bearer", "").trim();
+    if (!token) return res.sendStatus(401);
+    console.log("teste")
+
+    try {
+        const session = await db.collection("sessions").findOne({ token: id });
+        console.log(session)
+        if (session) {
+            await db.collection("sessions").deleteOne({ token: id });
+            res.sendStatus(201);
+        }else{
+            res.sendStatus(404);
+        }
+
+    } catch (e){
+        console.log(e);
         res.sendStatus(500);
     }
 });
