@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { signUpController } from "./controllers/signUpController.js";
 import { loginController } from "./controllers/loginController.js";
-import { getRecodsController, recordsController,deleteRecordsController } from "./controllers/recordsController.js";
+import recordsRouter from "./routes/recordsRouter.js";
 
 const app = express();
 app.use(cors());
@@ -14,11 +14,7 @@ app.post("/", loginController);
 
 app.post("/sign-up", signUpController);
 
-app.get("/records", getRecodsController);
-
-app.post("/records", recordsController);
-
-app.delete("/records/:id", deleteRecordsController);
+app.use(recordsRouter);
 
 const port = process.env.PORT || 9000;
 
