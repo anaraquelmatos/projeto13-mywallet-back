@@ -6,11 +6,9 @@ import dayjs from "dayjs";
 export async function getRecodsController(req, res) {
 
     const { authorization } = req.headers;
+    const token = authorization?.replace("Bearer", "").trim();
 
     let array = [];
-
-    const token = authorization?.replace("Bearer", "").trim();
-    if (!token) return res.sendStatus(401);
 
     const session = await db.collection("sessions").findOne({ token });
     if (!session) return res.sendStatus(401);
@@ -28,19 +26,16 @@ export async function getRecodsController(req, res) {
         }
     }
 
-
     res.send({ list: array, name: user.name })
 
 }
 
 export async function recordsController(req, res) {
 
-    const { description, value, operator } = req.body;
-
     const { authorization } = req.headers;
-
     const token = authorization?.replace("Bearer", "").trim();
-    if (!token) return res.sendStatus(401);
+
+    const { description, value, operator } = req.body;
 
     const userData = {
         value,
@@ -81,15 +76,8 @@ export async function deleteRecordsController(req, res) {
 
     const { id } = req.params;
 
-    const { authorization } = req.headers;
-
-    const token = authorization?.replace("Bearer", "").trim();
-    if (!token) return res.sendStatus(401);
-    console.log("teste")
-
     try {
         const session = await db.collection("sessions").findOne({ token: id });
-        console.log(session)
         if (session) {
             await db.collection("sessions").deleteOne({ token: id });
             res.sendStatus(201);
@@ -97,8 +85,7 @@ export async function deleteRecordsController(req, res) {
             res.sendStatus(404);
         }
 
-    } catch (e) {
-        console.log(e);
+    } catch {
         res.sendStatus(500);
     }
 }

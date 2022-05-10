@@ -33,8 +33,7 @@ export async function loginController(req, res) {
             return;
         }
     }
-    catch (e){
-        console.log(e);
+    catch {
         res.sendStatus(500);
     }
 }
