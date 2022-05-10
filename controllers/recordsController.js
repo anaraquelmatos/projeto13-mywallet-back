@@ -81,6 +81,7 @@ export async function deleteRecordsController(req, res) {
         if (session) {
             await db.collection("sessions").deleteOne({ token: id });
             res.sendStatus(201);
+
         } else {
             res.sendStatus(404);
         }
